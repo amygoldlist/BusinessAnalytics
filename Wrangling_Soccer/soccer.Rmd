@@ -1,0 +1,170 @@
+---
+title: "Fun Soccer Worksheet"
+author: "Amy Goldlist"
+date: "08/04/2022"
+output: html_document
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)  ## this is coding instructions, ignore!
+
+
+```
+
+
+## Open the libraries we will need:
+
+As well as get that fun data!
+
+```{r}
+library(dplyr) ## dplyr is for working with data frames 
+library(openxlsx) ## lets us liaise with Excel
+library(stringr) ## Extract words to make it faster!
+
+
+
+## read in the data
+df <- read.xlsx("soccer.xlsx", sheet = "Detailorders", startRow = 2)
+
+
+```
+
+
+## Basic Data
+
+First, let's look at what we have:
+```{r }
+
+
+df
+```
+
+This we can look at the structure:
+
+```{r }
+
+
+df %>% str()
+```
+
+
+## Reshape the data:
+
+We want the data to look like this:
+
+
+| Player        | Item   |Size |Received
+|--------|-----------|------------|------------|
+| 1 |     Jersey|YL |Yes|
+| 7    | Socks | Med    |No|
+
+
+Let's group the data:
+
+
+
+```{r, echo = TRUE}
+
+## make a string of names
+col_names <- colnames(df)
+
+## WE want to see just the clothing:
+interm_list <- col_names[2:27]
+
+interm_list
+
+size_list <- c()
+rec_list <- c()
+for (i in 1:13){
+  size_list <- c(size_list,interm_list[2*i-1])
+  rec_list <- c(rec_list,interm_list[2*i])
+}
+
+item_list <- str_remove(rec_list,".Received")
+
+
+## Make a blank df
+
+Soccer_df <- data.frame("Player"=numeric(), "Item"= character(), "Size"=character(), "Recieved"=character())
+
+
+
+for (i in 1:13){
+
+
+  newdf <- df %>% 
+    select(Player, size_list[i], rec_list[i])
+  
+  names(newdf) <- c("Player", "Size", "Received")
+  newdf$Item <- item_list[i]
+  
+  newdf <- newdf %>% 
+    select(Player, Item, Size, Received)
+  
+Soccer_df <- rbind(Soccer_df, newdf)
+  
+}
+
+
+## Inspect the first 5 rows:
+
+Soccer_df %>% head()
+
+
+```
+
+
+Now we will look at grouping the data.
+
+I filtered out anything where the size was "NA"
+
+
+```{r , echo=TRUE}
+
+
+summary <- Soccer_df %>% 
+  filter(!is.na(Size)) %>% 
+  group_by(Item, Size, Received) %>% 
+  summarize(Count = n())
+
+to_save <- Soccer_df %>% 
+  filter(!is.na(Size)) %>% 
+  group_by(Item, Size, Received) %>% 
+  summarize(Count = n()) %>% 
+  filter(Received == "No")
+
+to_save
+
+```
+
+## Save
+
+Finally, we cna save that file as a new Excel sheet - or you could mkae it an old Excel Sheet, whatever!
+
+```{r}
+file_name <- paste0("Soccer_",Sys.Date(),".xlsx")
+file_name
+
+
+wb <- createWorkbook("Soccer_Gear")
+
+addWorksheet(wb, sheetName = "original")
+writeData(wb, sheet = "original", x = df)
+
+addWorksheet(wb, sheetName = "Not_Received")
+writeData(wb, sheet = "Not_Received", x = to_save)
+
+addWorksheet(wb, sheetName = "Summary")
+writeData(wb, sheet = "Summary", x = summary)
+
+
+
+saveWorkbook(wb, file_name, overwrite = TRUE)
+
+
+
+```
+
+
